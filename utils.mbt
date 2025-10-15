@@ -35,12 +35,6 @@ pub fn to_upper_case(s : String) -> String {
 }
 
 ///|
-/// Checks if a character is a digit (0-9)
-pub fn is_digit(c : Int) -> Bool {
-  return c >= 48 && c <= 57
-}
-
-///|
 /// Checks if a character is an uppercase letter (A-Z)
 pub fn is_upper(c : Char) -> Bool {
   let code = c.to_int()

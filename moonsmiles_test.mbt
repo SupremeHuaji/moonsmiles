@@ -275,7 +275,6 @@ test "calculate_logp computes LogP value" {
   // 测试乙醇
   let ethanol = parse_smiles("CCO")
   let ethanol_logp = calculate_logp(ethanol)
-
   assert_eq(ethanol_logp < 0.0, true) // 乙醇LogP应为负值(亲水性)
 
   // 测试正辛烷

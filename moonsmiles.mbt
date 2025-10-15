@@ -141,25 +141,21 @@ pub fn normalize_smiles(smiles : String) -> Result[String, String] {
 ///|
 /// 增强版 tokenize_smiles_extended，添加调试输出
 pub fn tokenize_smiles_extended(smiles : String) -> Array[String] {
-  println("DEBUG: 开始分词 SMILES: \{smiles}")
   let tokens : Array[String] = Array::new()
   let mut buffer : String = ""
   let mut in_bracket = false
   for char in smiles {
     let char_str = char.to_string()
     if char_str == "[" {
-      println("DEBUG: 发现左括号 [")
       in_bracket = true
       buffer = "["
     } else if char_str == "]" && in_bracket {
-      println("DEBUG: 发现右括号 ], 当前缓冲区: \{buffer}")
       in_bracket = false
       buffer = buffer + "]"
       tokens.push(buffer) // 将整个括号内容作为一个标记
-      println("DEBUG: 添加标记: \{buffer}")
       buffer = ""
     } else if in_bracket {
-      println("DEBUG: 在括号内添加字符: \{char_str}, ASCII: \{char}")
+
       // 在括号内部，保持所有字符在一起
       buffer = buffer + char_str
     } else if is_atom(char_str) ||
@@ -168,169 +164,132 @@ pub fn tokenize_smiles_extended(smiles : String) -> Array[String] {
       is_ring_number(char_str) {
       // 普通标记的处理
       if !buffer.is_empty() {
-        println("DEBUG: 添加缓冲区内容作为标记: \{buffer}")
         tokens.push(buffer)
         buffer = ""
       }
-      println("DEBUG: 添加普通标记: \{char_str}")
       tokens.push(char_str)
     } else {
       // 处理其他字符（如数字）
-      println("DEBUG: 添加其他字符到缓冲区: \{char_str}")
+
       buffer = buffer + char_str
     }
   }
   if !buffer.is_empty() {
-    println("DEBUG: 添加最终缓冲区内容作为标记: \{buffer}")
     tokens.push(buffer)
   }
-  println("DEBUG: 分词结果: \{tokens}")
   return tokens
 }
 
 ///|
-/// 修复版解析括号原子函数，添加详细调试输出
+/// 解析括号原子表示法，修复同位素解析
 pub fn parse_bracketed_atom(token : String) -> Atom {
-  println("DEBUG: 开始解析括号原子: \{token}")
-
   // 移除方括号
-  let content = token.substring(start=1, end=token.length() - 1)
-  println("DEBUG: 括号内容: \{content}")
-  println("DEBUG: 内容长度: \{content.length()}")
+  let content = token.unsafe_substring(start=1, end=token.length() - 1)
   let mut symbol = ""
   let mut charge = 0
   let chiral = ""
   let mut isotope : Int? = None
   let mut hydrogens : Int? = None
-
-  // 解析同位素
   let mut i = 0
-  let mut digit_buffer = ""
-  println("DEBUG: 开始解析同位素")
+
+  // 解析同位素（修复这部分）
+  let mut isotope_str = ""
   while i < content.length() && is_digit(content[i]) {
-    let char = Int::unsafe_to_char(content[i])
-    println("DEBUG: 发现数字字符: \{char}")
-    digit_buffer += char.to_string()
+    // 使用字符的实际字符串表示，而不是ASCII码
+    isotope_str = isotope_str + Int::unsafe_to_char(content[i]).to_string()
     i += 1
   }
-  if !digit_buffer.is_empty() {
-    isotope = Some(string_to_int(digit_buffer))
-    println("DEBUG: 解析出同位素: \{isotope}")
+  if !isotope_str.is_empty() {
+    // 直接使用字符串转整数函数
+    isotope = Some(string_to_int(isotope_str))
   }
 
   // 解析元素符号
-  println("DEBUG: 开始解析元素符号，当前位置: \{i}")
   if i < content.length() {
     symbol = Int::unsafe_to_char(content[i]).to_string()
-    println("DEBUG: 首字符: \{symbol}, ASCII: \{content[i]}")
     i += 1
 
-    // 处理两字符元素 (如 Cl, Br)
+    // 检查是否是两字符元素
     if i < content.length() && is_lower(content[i]) {
-      let second_char = Int::unsafe_to_char(content[i]).to_string()
-      println(
-        "DEBUG: 第二个字符是小写: \{second_char}, ASCII: \{content[i]}",
-      )
-      symbol += second_char
+      symbol = symbol + Int::unsafe_to_char(content[i]).to_string()
       i += 1
     }
   }
-  println("DEBUG: 解析出元素符号: \{symbol}")
 
   // 解析氢原子数
-  println("DEBUG: 开始解析氢原子数，当前位置: \{i}")
-  if i < content.length() && Int::unsafe_to_char(content[i]) == 'H' {
-    println("DEBUG: 发现氢原子标记 H")
+  if i < content.length() && content[i] == 'H' {
     i += 1
     hydrogens = Some(1)
 
-    // 解析氢数量
-    let mut h_count = ""
+    // 检查是否有氢原子数量
+    let mut h_count_str = ""
     while i < content.length() && is_digit(content[i]) {
-      let digit = Int::unsafe_to_char(content[i]).to_string()
-      println("DEBUG: 氢原子数字: \{digit}")
-      h_count += digit
+      h_count_str = h_count_str + Int::unsafe_to_char(content[i]).to_string()
       i += 1
     }
-    if !h_count.is_empty() {
-      hydrogens = Some(string_to_int(h_count))
-      println("DEBUG: 解析出显式氢原子数: \{hydrogens}")
+    if !h_count_str.is_empty() {
+      hydrogens = Some(string_to_int(h_count_str))
     }
   }
 
   // 解析电荷
-  println("DEBUG: 开始解析电荷，当前位置: \{i}")
   while i < content.length() {
-    let c = Int::unsafe_to_char(content[i])
-    println("DEBUG: 检查电荷字符: \{c}, ASCII: \{content[i]}")
-    if c == '+' {
+    if content[i] == '+' {
       charge += 1
-      println("DEBUG: 发现正电荷，当前电荷: \{charge}")
       i += 1
-    } else if c == '-' {
+    } else if content[i] == '-' {
       charge -= 1
-      println("DEBUG: 发现负电荷，当前电荷: \{charge}")
       i += 1
     } else {
-      println("DEBUG: 不是电荷字符，停止解析电荷")
       break
     }
   }
-  println(
-    "DEBUG: 解析结果 - 符号: \{symbol}, 氢: \{hydrogens}, 电荷: \{charge}, i=\{i}, content.length=\{content.length()}",
-  )
-
-  // 创建原子对象
-  let atom = {
+  return {
     symbol,
     id: -1,
     bonds: Array::new(),
     charge,
     chiral,
-    aromatic: is_lowercase(symbol[0]),
+    aromatic: symbol.length() > 0 && is_lowercase(symbol[0]),
     isotope,
     explicit_hydrogens: hydrogens,
   }
-  println("DEBUG: 创建的原子对象: \{atom}")
-  return atom
 }
 
 ///|
-/// 解析SMILES字符串，添加调试输出
-pub fn parse_smiles(smiles : String) -> Molecule raise SmilesError {
-  println("DEBUG: 开始解析 SMILES: \{smiles}")
+/// 检查字符是否是数字（0-9）
+fn is_digit(c : Int) -> Bool {
+  c >= '0' && c <= '9'
+}
 
-  // 使用 parse_smiles_with_rings 函数处理所有SMILES字符串
-  if contains_any(smiles, ["1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
-    println("DEBUG: 发现数字，使用 parse_smiles_with_rings")
+///|
+/// 解析SMILES字符串，添加对带方括号原子的特殊处理
+pub fn parse_smiles(smiles : String) -> Molecule raise SmilesError {
+  // 特殊处理带方括号的原子表示，如 [NH4+]
+  if smiles.length() >= 2 && smiles[0] == '[' {
+    // 使用基本解析方法处理
+  } else if contains_any(smiles, ["1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
+    // 只有在不是方括号开头时，才把数字视为环编号
     return parse_smiles_with_rings(smiles)
   }
-  println("DEBUG: 使用基本解析方法")
   let mol : Molecule = Molecule::new()
   let stack : Array[Int] = Array::new()
   let mut current_atom_id = -1
   let mut pending_bond_type = "-"
-  println("DEBUG: 调用 tokenize_smiles_extended")
   let tokens = tokenize_smiles_extended(smiles)
-  println("DEBUG: 获取到标记: \{tokens}")
-  for token in tokens {
-    println("DEBUG: 处理标记: '\{token}'")
 
+  // 创建环连接映射
+  let ring_connections : Map[Int, Int] = Map::new()
+  for token in tokens {
     // 处理带方括号的原子，如 [NH4+]
     if token.length() > 2 && token[0] == '[' && token[token.length() - 1] == ']' {
-      println("DEBUG: 标记是括号原子")
-
       // 解析括号原子
       let atom = parse_bracketed_atom(token)
       atom.id = mol.atoms.length() // 更新ID
-      println("DEBUG: 解析得到原子: \{atom}")
       mol.atoms.push(atom)
 
       // 如果有当前原子，创建键连接
       if current_atom_id >= 0 {
-        println(
-          "DEBUG: 创建键连接，当前原子ID: \{current_atom_id}, 新原子ID: \{atom.id}",
-        )
         let bond = Bond::{
           atom1: current_atom_id,
           atom2: atom.id,
@@ -342,9 +301,7 @@ pub fn parse_smiles(smiles : String) -> Molecule raise SmilesError {
         pending_bond_type = "-" // 重置键类型
       }
       current_atom_id = atom.id
-      // 处理普通原子
     } else if is_atom(token) {
-      println("DEBUG: 标记是普通原子: \{token}")
       let atom = Atom::new(token, mol.atoms.length())
       mol.atoms.push(atom)
       if current_atom_id >= 0 {
@@ -360,12 +317,10 @@ pub fn parse_smiles(smiles : String) -> Molecule raise SmilesError {
       }
       current_atom_id = atom.id
     } else if is_branch(token) {
-      println("DEBUG: 标记是分支: \{token}")
       if token == "(" {
         stack.push(current_atom_id)
       } else if token == ")" {
         if stack.is_empty() {
-          println("DEBUG: 错误：括号不平衡")
           raise SmilesError::UnbalancedParentheses(
             "Too many closing parentheses",
           )
@@ -373,17 +328,37 @@ pub fn parse_smiles(smiles : String) -> Molecule raise SmilesError {
         current_atom_id = stack.pop().unwrap()
       }
     } else if is_bond(token) {
-      println("DEBUG: 标记是键: \{token}")
       pending_bond_type = token
     } else if is_ring_number(token) {
-      println("DEBUG: 标记是环数字: \{token}")
-      // 环连接处理...
+      // 环连接处理
+      let ring_id = string_to_int(token)
+      if ring_connections.contains(ring_id) {
+        // 找到环的闭合点，创建键
+        let other_atom_id = ring_connections[ring_id]
+
+        // 创建键连接当前原子和之前标记的原子
+        if current_atom_id >= 0 && other_atom_id >= 0 {
+          let bond = Bond::{
+            atom1: current_atom_id,
+            atom2: other_atom_id,
+            bond_type: pending_bond_type,
+          }
+          mol.bonds.push(bond)
+          mol.atoms[current_atom_id].bonds.push(bond)
+          mol.atoms[other_atom_id].bonds.push(bond)
+
+          // 重置键类型和移除使用过的环连接
+          pending_bond_type = "-"
+          ring_connections.remove(ring_id)
+        }
+      } else {
+        // 第一次遇到这个环编号，记录当前原子ID
+        ring_connections.set(ring_id, current_atom_id)
+      }
     } else {
-      println("DEBUG: 不支持的标记: \{token}")
       raise SmilesError::UnsupportedToken("Unsupported token: \{token}")
     }
   }
-  println("DEBUG: SMILES 解析完成，返回分子")
   return mol
 }
 
@@ -796,17 +771,12 @@ pub fn contains_any(s : String, chars : Array[String]) -> Bool {
 ///|
 /// Generates molecular formula (e.g., C6H6O) from a Molecule
 pub fn generate_formula(mol : Molecule) -> String {
-  println("DEBUG: 开始生成分子式...")
-  println("DEBUG: 分子中有 \{mol.atoms.length()} 个原子")
   let element_counts = Map::new()
 
   // 计算每种元素的原子数（包括隐式氢原子）
   for atom in mol.atoms {
     // 转换元素符号为标准大写形式（芳香族原子也转换）
     let std_symbol = to_upper_case(atom.symbol)
-    println(
-      "DEBUG: 原子 \{atom.id}, 符号 \{atom.symbol}, 标准符号 \{std_symbol}, 键数 \{atom.bonds.length()}, 芳香性 \{atom.aromatic}",
-    )
 
     // 添加显式原子
     element_counts.update(std_symbol, fn(count) {
@@ -818,9 +788,6 @@ pub fn generate_formula(mol : Molecule) -> String {
 
     // 添加隐式氢原子
     let implicit_hydrogens = calculate_implicit_hydrogens(atom, mol)
-    println(
-      "DEBUG: 原子 \{atom.id} (\{atom.symbol}) 有 \{implicit_hydrogens} 个隐式氢",
-    )
     if implicit_hydrogens > 0 {
       element_counts.update("H", fn(count) {
         match count {
@@ -829,10 +796,6 @@ pub fn generate_formula(mol : Molecule) -> String {
         }
       })
     }
-  }
-  println("DEBUG: 元素计数:")
-  for symbol in element_counts.keys().to_array() {
-    println("DEBUG: \{symbol}: \{element_counts[symbol]}")
   }
 
   // 按元素符号排序生成分子式
@@ -861,13 +824,12 @@ pub fn generate_formula(mol : Molecule) -> String {
       symbol +
       (if count > 1 { count.to_string() } else { "" })
   }
-  println("DEBUG: 最终分子式: \{formula}")
   return formula
 }
 
 ///|
 /// 计算隐式氢原子数，特别处理芳香碳的情况
-pub fn calculate_implicit_hydrogens(atom : Atom, mol : Molecule) -> Int {
+pub fn calculate_implicit_hydrogens(atom : Atom, _ : Molecule) -> Int {
   // 如果显式指定了氢原子数，直接返回
   if atom.explicit_hydrogens is Some(h) {
     return h
@@ -1271,7 +1233,7 @@ pub fn calculate_logp(mol : Molecule) -> Double {
       "Cl" | "CL" => logp += 1.0
       "Br" | "BR" => logp += 1.2
       "I" => logp += 1.5
-      _ => ignore({})
+      _ => ()
     }
 
     // 碳原子的氢取代模式
